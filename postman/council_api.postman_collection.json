@@ -1,0 +1,200 @@
+{
+  "info": {
+    "name": "Council API",
+    "description": "Postman collection for testing Council backend endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8002"
+    },
+    {
+      "key": "paperId",
+      "value": "paper_1ba6db38d4c86a5e"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Crawl (query)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"query\": \"transformer pretraining\",\n  \"limit_per_source\": 2,\n  \"max_papers\": 3,\n  \"concurrency\": 2\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/crawl",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "crawl"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Crawl (question)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"What are the key innovations in transformer architectures and pre-training methods?\",\n  \"topic_count\": 4,\n  \"limit_per_source\": 2,\n  \"max_papers\": 3,\n  \"concurrency\": 2\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/crawl",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "crawl"
+          ]
+        }
+      }
+    },
+    {
+      "name": "List Papers",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/papers",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "papers"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Extract Single Paper",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/extract/{{paperId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "extract",
+            "{{paperId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Extract All Papers",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/extract-all",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "extract-all"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Analyze",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"paper_ids\": []\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/analyze",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "analyze"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get Latest Report",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/report",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "report"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Final Report",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"target_research_finding\": \"Scaling improves low-resource translation quality\",\n  \"top_k\": 10,\n  \"paper_ids\": []\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/final-report",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "final-report"
+          ]
+        }
+      }
+    }
+  ]
+}
