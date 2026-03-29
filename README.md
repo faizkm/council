@@ -3,7 +3,7 @@
 This backend now supports a simple end-to-end flow:
 
 - discover papers and download PDFs
-- extract basic sections/claims/method keywords from PDFs
+- extract claims/methods/datasets from PDFs (Groq-first with heuristic fallback)
 - generate a lightweight cross-paper analysis report
 
 ## Architecture
@@ -48,9 +48,13 @@ Create `.env` from `.env.example` in the project root and set keys:
 
 ```bash
 GROQ_API_KEY=your_groq_api_key
+GROQ_API_KEYS=key_one,key_two,key_three
 GROQ_MODEL=llama-3.3-70b-versatile
 CRAWL4AI_ENABLED=0
 ```
+
+`GROQ_API_KEYS` is optional. When present, the system circulates requests across listed keys (round-robin) and auto-fails over on rate limits/server errors.
+`GROQ_API_KEY` remains supported as a single-key fallback.
 
 Both CLI and API auto-load `.env`.
 
@@ -60,6 +64,12 @@ Start API:
 
 ```bash
 uvicorn app:app --reload
+```
+
+Start visual checker:
+
+```bash
+streamlit run streamlit_app.py
 ```
 
 Call crawl API:
@@ -94,6 +104,21 @@ Read latest report:
 
 ```bash
 curl http://127.0.0.1:8000/report
+```
+
+One-shot hackathon flow (crawl -> extract -> analyze -> final report):
+
+```bash
+curl -X POST http://127.0.0.1:8000/crawl-report \
+   -H "Content-Type: application/json" \
+   -d '{"question":"How can graph neural networks improve traffic forecasting in smart cities?", "topic_count":4, "max_papers":20, "concurrency":6, "target_research_finding":"GNN improves traffic forecasting"}'
+```
+
+Run extraction in the background (non-blocking):
+
+```bash
+curl -X POST http://127.0.0.1:8000/extract-all/background
+curl http://127.0.0.1:8000/extract-all/status
 ```
 
 Run CLI (same pipeline, no parsing):
@@ -143,6 +168,11 @@ data/
    reports/
       latest_report.json
 ```
+
+## Notes
+
+- Discovery defaults to OpenAlex + Semantic Scholar for stability.
+- DuckDuckGo code remains in the project, but is not used by default pipeline search.
 # council
 # council
 # council

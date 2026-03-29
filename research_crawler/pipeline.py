@@ -21,6 +21,7 @@ DUCK_HTML_SEARCH = "https://duckduckgo.com/html/"
 DOI_PATTERN = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
 YEAR_PATTERN = re.compile(r"\b(19|20)\d{2}\b")
 ARXIV_ABS_PATTERN = re.compile(r"https?://arxiv\.org/abs/([^/?#]+)", re.IGNORECASE)
+_GROQ_KEY_CURSOR = 0
 
 
 @dataclass(slots=True)
@@ -46,8 +47,7 @@ class TopicPlanner:
         question: str,
         topic_count: int = 4,
     ) -> list[str]:
-        api_key = os.getenv("GROQ_API_KEY", "").strip()
-        if not api_key:
+        if not _groq_api_keys():
             return [question.strip()]
 
         prompt = (
@@ -58,26 +58,20 @@ class TopicPlanner:
         )
 
         async def _request() -> dict:
-            response = await client.post(
-                GROQ_URL,
-                headers={
-                    "authorization": f"Bearer {api_key}",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": self.model,
-                    "max_tokens": 300,
-                    "temperature": 0,
-                    "response_format": {"type": "json_object"},
-                    "messages": [
-                        {"role": "system", "content": "Return valid JSON only."},
-                        {"role": "user", "content": prompt},
-                    ],
-                },
-                timeout=25.0,
-            )
-            response.raise_for_status()
-            return response.json()
+            payload = {
+                "model": self.model,
+                "max_tokens": 300,
+                "temperature": 0,
+                "response_format": {"type": "json_object"},
+                "messages": [
+                    {"role": "system", "content": "Return valid JSON only."},
+                    {"role": "user", "content": prompt},
+                ],
+            }
+            response_payload = await _groq_chat_with_rotation(client=client, payload=payload)
+            if not response_payload:
+                raise RuntimeError("groq request failed")
+            return response_payload
 
         try:
             payload = await with_retries(_request, retries=2, base_delay=0.6)
@@ -140,6 +134,53 @@ class TopicPlanner:
         except json.JSONDecodeError:
             return None
         return parsed if isinstance(parsed, dict) else None
+
+
+def _groq_api_keys() -> list[str]:
+    pooled = os.getenv("GROQ_API_KEYS", "")
+    keys = [item.strip() for item in pooled.split(",") if item.strip()]
+
+    single = os.getenv("GROQ_API_KEY", "").strip()
+    if single and single not in keys:
+        keys.append(single)
+
+    return keys
+
+
+def _next_groq_api_key(keys: list[str]) -> str:
+    global _GROQ_KEY_CURSOR
+    key = keys[_GROQ_KEY_CURSOR % len(keys)]
+    _GROQ_KEY_CURSOR += 1
+    return key
+
+
+async def _groq_chat_with_rotation(client: httpx.AsyncClient, payload: dict) -> dict | None:
+    keys = _groq_api_keys()
+    if not keys:
+        return None
+
+    for _ in range(len(keys)):
+        api_key = _next_groq_api_key(keys)
+        try:
+            response = await client.post(
+                GROQ_URL,
+                headers={
+                    "authorization": f"Bearer {api_key}",
+                    "content-type": "application/json",
+                },
+                json=payload,
+                timeout=25.0,
+            )
+            if response.status_code == 429 or response.status_code >= 500:
+                continue
+            response.raise_for_status()
+            result = response.json()
+            if isinstance(result, dict):
+                return result
+        except Exception:  # noqa: BLE001
+            continue
+
+    return None
 
 
 async def search_openalex(
@@ -647,7 +688,6 @@ class ResearchOrchestrator:
         tasks = [
             asyncio.create_task(search_openalex(client, query, limit=limit_per_source)),
             asyncio.create_task(search_semantic_scholar(client, query, limit=limit_per_source)),
-            asyncio.create_task(search_duckduckgo(client, query, limit=limit_per_source)),
         ]
         settled = await asyncio.gather(*tasks, return_exceptions=True)
 
