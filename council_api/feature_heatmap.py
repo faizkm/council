@@ -9,11 +9,14 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from council_api.extraction import extract_from_pdf
+
 router = APIRouter(tags=["feature-heatmap"])
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT_DIR / "data"
 EXTRACTED_DIR = DATA_DIR / "extracted"
+METADATA_DIR = DATA_DIR / "metadata"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
 POSITIVE_WORDS = ["improve", "better", "outperform", "increase", "gain"]
@@ -41,9 +44,45 @@ def contradiction_heatmap(payload: HeatmapRequest) -> dict:
 
 def _load_extracted(paper_id: str) -> dict:
     path = EXTRACTED_DIR / f"{paper_id}.json"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail=f"Extracted JSON not found for {paper_id}.")
-    return json.loads(path.read_text(encoding="utf-8"))
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    # Auto-extract on demand so heatmap works even when extract-all wasn't run.
+    metadata_path = METADATA_DIR / f"{paper_id}.json"
+    if not metadata_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Extracted JSON not found for {paper_id}, and metadata is missing. "
+                "Run /crawl first or provide a valid paper_id."
+            ),
+        )
+
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    pdf_path = Path(metadata.get("pdf_path", ""))
+    if not pdf_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Extracted JSON not found for {paper_id}, and source PDF is missing. "
+                "Run /crawl again or verify metadata/pdf paths."
+            ),
+        )
+
+    try:
+        extracted = extract_from_pdf(
+            paper_id=paper_id,
+            pdf_path=pdf_path,
+            output_dir=EXTRACTED_DIR,
+            metadata=metadata,
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to auto-extract {paper_id} for heatmap: {exc}",
+        ) from exc
+
+    return extracted
 
 
 def _heatmap_with_groq(papers: list[dict]) -> list[list[dict]]:

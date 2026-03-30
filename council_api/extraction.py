@@ -216,6 +216,7 @@ def build_final_report(
             },
         ],
         "decision_recommendations": decision_recommendations,
+        "structured_debates": _load_recent_debates(),
     }
 
 
@@ -725,3 +726,32 @@ def _claims_are_related(left: str, right: str) -> bool:
 def _token_set(text: str) -> set[str]:
     tokens = re.findall(r"[a-z]{5,}", text.lower())
     return {token for token in tokens if token not in STOPWORDS}
+
+
+def _load_recent_debates() -> list[dict]:
+    """Load recent structured debate results from disk."""
+    root_dir = Path(__file__).resolve().parents[1]
+    data_dir = root_dir / "data"
+    debates_dir = data_dir / "debates"
+
+    if not debates_dir.exists():
+        return []
+
+    debates = []
+    for debate_file in sorted(debates_dir.glob("*.json"), reverse=True)[:5]:  # Last 5
+        try:
+            debate_data = json.loads(debate_file.read_text(encoding="utf-8"))
+            verdict = debate_data.get("verdict_card", {})
+            debates.append({
+                "file": debate_file.name,
+                "paper_A": debate_data.get("paper_A", {}),
+                "paper_B": debate_data.get("paper_B", {}),
+                "winner": verdict.get("winner"),
+                "total_score_A": verdict.get("total_score_A"),
+                "total_score_B": verdict.get("total_score_B"),
+                "narrative": verdict.get("narrative", ""),
+            })
+        except Exception:
+            pass
+
+    return debates

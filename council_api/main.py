@@ -18,6 +18,7 @@ from research_crawler.pipeline import ResearchOrchestrator
 from council_api.extraction import build_final_report, build_report, extract_from_pdf
 from council_api.feature_accuracy import router as accuracy_router
 from council_api.feature_citation import router as citation_router
+from council_api.feature_citation_chat import router as citation_chat_router
 from council_api.feature_debate import router as debate_router
 from council_api.feature_heatmap import router as heatmap_router
 from council_api.feature_qa import router as qa_router
@@ -39,6 +40,7 @@ app = FastAPI(title="Council API", version="0.1.0")
 orchestrator = ResearchOrchestrator(pdf_dir=PDF_DIR, metadata_dir=METADATA_DIR)
 app.include_router(accuracy_router)
 app.include_router(citation_router)
+app.include_router(citation_chat_router)
 app.include_router(debate_router)
 app.include_router(heatmap_router)
 app.include_router(qa_router)
@@ -332,7 +334,18 @@ def get_latest_report() -> dict:
     _append_log("Latest report requested.")
     path = REPORTS_DIR / "latest_report.json"
     if not path.exists():
-        raise HTTPException(status_code=404, detail="No report generated yet.")
+        extracted_files = list(EXTRACTED_DIR.glob("*.json"))
+        if not extracted_files:
+            raise HTTPException(
+                status_code=404,
+                detail="No report generated yet and no extracted papers found. Run /extract-all first.",
+            )
+
+        _append_log("latest_report.json missing; auto-generating from extracted papers.")
+        report = build_report(EXTRACTED_DIR)
+        REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(report, ensure_ascii=True, indent=2), encoding="utf-8")
+
     return json.loads(path.read_text(encoding="utf-8"))
 
 
